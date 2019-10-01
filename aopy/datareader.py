@@ -13,4 +13,13 @@ def read_from_start(data_file_path,data_type,n_ch,n_read):
 
     return data
 
+def read_from_file(data_file_path,data_type,n_ch,n_read,n_offset):
+    data_file = open(data_file_path,"rb")
+    data = np.fromfile(data_file,dtype=data_type,count=n_read*n_ch,
+                       offset=n_offset*n_ch)
+    data = np.reshape(data,(n_ch,n_read),order='F')
+    data_file.close()
+
+    return data
+
 
