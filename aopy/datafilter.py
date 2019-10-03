@@ -4,12 +4,33 @@
 
 
 import numpy as np
+import numpy.linalg as npla
 import scipy.signal as sps
 import progressbar as pb
 
 
+# python implementation of badChannelDetection.m - see which channels are too noisy
+def bad_channel_detection( data, srate, lf_c=100, sg_win_t=8, sg_over_t=4, sg_bw = 0.5 ):
+    print("Running bad channel assessment:")
+    (num_ch,num_samp) = np.shape(data)
+    
+    # compute low-freq PSD estimate
+    [fxx,txx,Sxx] = mt_sgram(data,srate,sg_win_t,sg_over_t,sg_bw)
+    low_freq_mask = fxx < lf_c
+    Sxx_low = Sxx[:,low_freq_mask,:]
+    Sxx_low_psd = np.mean(Sxx_low,axis=2)
+    
+    psd_var = np.var(Sxx_low_psd,axis=1)
+    norm_psd_var = psd_var/npla.norm(psd_var)
+    low_var_θ = np.mean(norm_psd_var)/3
+    bad_ch_mask = norm_psd_var <= low_var_θ
+    
+    return bad_ch_mask
+
+
 # python implementation of highFreqTimeDetection.m - looks for spectral signatures of junk data
 def high_freq_data_detection( data, srate, bad_channels=np.zeros(np.shape(data)[0]), lf_c=100):
+    print("Running high frequency noise detection: lfc @ {0}".format(lf_c))
     [num_ch,num_samp] = np.shape(data)
     data_t = np.arange(num_samp)/srate
     
@@ -93,6 +114,7 @@ def mt_sgram(x,srate,win_t,over_t,bw):
 # py version of saturatedTimeDetection.m - get indeces of saturated data segments
 def saturated_data_detection( data, srate, bad_channels=np.zeros(np.shape(data)[0]), adapt_tol=1e8 ,
                               win_n=20 ):
+    print("Running saturated data segment detection:")
     num_ch, num_samp = np.shape(data)
     bad_all_ch_mask = np.zeros((num_ch,num_samp))
     data_rect = np.abs(data)
