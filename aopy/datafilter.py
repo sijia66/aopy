@@ -8,6 +8,47 @@ import scipy.signal as sps
 import progressbar as pb
 
 
+# python implementation of highFreqTimeDetection.m - looks for spectral signatures of junk data
+def high_freq_data_detection( data, srate, bad_channels=np.zeros(np.shape(data)[0]), lf_c=100):
+    [num_ch,num_samp] = np.shape(data)
+    data_t = np.arange(num_samp)/srate
+    
+    # calculate multitaper spectrogram for each channel
+    sg_win_t = 8 # (s)
+    sg_over_t = sg_win_t // 2 # (s)
+    sg_bw = 0.5 # (Hz)
+    fxx,txx,Sxx = mt_sgram(data,srate,sg_win_t,sg_over_t,sg_bw) # Sxx: [num_ch]x[num_freq]x[num_t]
+    num_freq, = np.shape(fxx)
+    num_t, = np.shape(txx)
+    Sxx_mean = np.mean(Sxx,axis=2) # average across all windows, i.e. numch x num_f periodogram
+    
+    # get low-freq, high-freq data
+    low_f_mask = fxx < lf_c # Hz
+    high_f_mask = np.logical_not(low_f_mask)
+    low_f_mean = np.mean(Sxx_mean[:,low_f_mask],axis=1)
+    low_f_std = np.std(Sxx_mean[:,low_f_mask],axis=1)
+    high_f_mean = np.mean(Sxx_mean[:,high_f_mask],axis=1)
+    high_f_std = np.std(Sxx_mean[:,high_f_mask],axis=1)
+    
+    # set thresholds for high, low freq. data
+    low_θ = low_f_mean - 3*low_f_std
+    high_θ = high_f_mean + 3*high_f_std
+    bad_data_mask_all_ch = np.zeros((num_ch,num_samp))
+    for ch_i in pb.progressbar(np.arange(num_ch)[np.logical_not(bad_channels)]):
+        for t_i, t_center in enumerate(txx):
+            low_f_mean_ = np.mean(Sxx[ch_i,low_f_mask,t_i])
+            high_f_mean_ = np.mean(Sxx[ch_i,high_f_mask,t_i])
+            if low_f_mean_ < low_θ[ch_i] and high_f_mean_ > high_θ[ch_i]:
+                # get indeces for the given sgram window and set them to "bad:True"
+                t_bad_mask = np.logical_and(data_t > t_center - sg_win_t/2, data_t < t_center + sg_win_t/2)
+                bad_data_mask_all_ch[ch_i,t_bad_mask] = True
+                
+    bad_ch_θ = 0
+    bad_data_mask = sum(bad_data_mask_all_ch) > bad_ch_θ
+    
+    return bad_data_mask
+
+
 # py version of noiseByHistogram.m - get upper and lower signal value bounds from a histogram
 def histogram_defined_noise_levels( data, nbin=20 ):
     # remove data in outer bins of the histogram calculation
@@ -24,6 +65,29 @@ def histogram_defined_noise_levels( data, nbin=20 ):
     noise_upper = high_edge if high_edge > data_CI_higher else max(data)
     
     return (noise_lower, noise_upper)
+
+
+# multitaper spectrogram estimator
+def mt_sgram(x,srate,win_t,over_t,bw):
+    # x - input data
+    # srate - sampling rate of x
+    # win_t - length of window (s)
+    # over_t - size of window overlap (s)
+    # bw - frequency resolution, i.e. bandwidth
+    nw = bw*win_t/2 # time-half bandwidth product
+    n_taper = round(nw*2-1)
+    win_n = srate*win_t
+    over_n = srate*over_t
+    dpss_w = sps.windows.dpss(win_n,nw,Kmax=n_taper)
+    
+    Sxx_m = []
+    for k in range(n_taper):
+        fxx,txx,Sxx_ = sps.spectrogram(x,srate,window=dpss_w[k,:],noverlap=over_n)
+        Sxx_m.append(Sxx_)
+        
+    Sxx = np.mean(Sxx_m,axis=0)
+    
+    return fxx, txx, Sxx
 
 
 # py version of saturatedTimeDetection.m - get indeces of saturated data segments
@@ -78,3 +142,4 @@ def saturated_data_detection( data, srate, bad_channels=np.zeros(np.shape(data)[
     sat_data_mask = num_bad > num_ch/2
     
     return sat_data_mask
+
