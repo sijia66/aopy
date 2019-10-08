@@ -114,10 +114,12 @@ def mt_sgram(x,srate,win_t,over_t,bw):
 
 
 # py version of saturatedTimeDetection.m - get indeces of saturated data segments
-def saturated_data_detection( data, srate, bad_channels=np.zeros(np.shape(data)[0]), adapt_tol=1e8 ,
+def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e8 ,
                               win_n=20 ):
     print("Running saturated data segment detection:")
     num_ch, num_samp = np.shape(data)
+    if not bad_channels:
+        bad_channels = np.zeros(num_ch)
     bad_all_ch_mask = np.zeros((num_ch,num_samp))
     data_rect = np.abs(data)
     mask = [bool(not x) for x in bad_channels]
