@@ -29,10 +29,12 @@ def bad_channel_detection( data, srate, lf_c=100, sg_win_t=8, sg_over_t=4, sg_bw
 
 
 # python implementation of highFreqTimeDetection.m - looks for spectral signatures of junk data
-def high_freq_data_detection( data, srate, bad_channels=np.zeros(np.shape(data)[0]), lf_c=100):
+def high_freq_data_detection( data, srate, bad_channels=None, lf_c=100):
     print("Running high frequency noise detection: lfc @ {0}".format(lf_c))
     [num_ch,num_samp] = np.shape(data)
     data_t = np.arange(num_samp)/srate
+    if not bad_channels:
+        bad_channels = np.zeros(num_ch)
     
     # calculate multitaper spectrogram for each channel
     sg_win_t = 8 # (s)
