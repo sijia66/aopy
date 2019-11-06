@@ -40,6 +40,7 @@ def high_freq_data_detection( data, srate, bad_channels=None, lf_c=100):
     sg_win_t = 8 # (s)
     sg_over_t = sg_win_t // 2 # (s)
     sg_bw = 0.5 # (Hz)
+    print("computing data spectrogram:");
     fxx,txx,Sxx = mt_sgram(data,srate,sg_win_t,sg_over_t,sg_bw) # Sxx: [num_ch]x[num_freq]x[num_t]
     num_freq, = np.shape(fxx)
     num_t, = np.shape(txx)
@@ -71,6 +72,12 @@ def high_freq_data_detection( data, srate, bad_channels=None, lf_c=100):
     
     return bad_data_mask
 
+
+# estimate regions of abnormally high power - treat power estimates as chi^2 distribution, estimate the mean, thresh at 4*m
+def chi2_power_thresh( data, srate, k=4, win_time=10 ):
+    
+    return Null
+    
 
 # py version of noiseByHistogram.m - get upper and lower signal value bounds from a histogram
 def histogram_defined_noise_levels( data, nbin=20 ):
@@ -114,7 +121,7 @@ def mt_sgram(x,srate,win_t,over_t,bw):
 
 
 # py version of saturatedTimeDetection.m - get indeces of saturated data segments
-def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e8 ,
+def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e-8 ,
                               win_n=20 ):
     print("Running saturated data segment detection:")
     num_ch, num_samp = np.shape(data)
@@ -123,11 +130,12 @@ def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e8 ,
     bad_all_ch_mask = np.zeros((num_ch,num_samp))
     data_rect = np.abs(data)
     mask = [bool(not x) for x in bad_channels]
-    for ch_i in progressbar(np.arange(num_ch)[mask]):
+    for ch_i in pb.progressbar(np.arange(num_ch)[mask]):
         ch_data = data_rect[ch_i,:]
         θ1 = 50 # initialize threshold value
         θ0 = 0
-        h, val = np.histogram(ch_data,int(np.max(ch_data)))
+        h, valc = np.histogram(ch_data,int(np.max(ch_data)))
+        val = (valc[1:] + valc[:-1])/2 # computes the midpoints of each bin, valc are the edges
         val = np.floor(val)
         prob_val = h/np.shape(h)[0]
         
@@ -137,7 +145,7 @@ def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e8 ,
             sub_θ_val_mask = val <= θ1
             sup_θ_val_mask = val > θ1
             sub_θ_val_mean = np.sum(np.multiply(val[sub_θ_val_mask],prob_val[sub_θ_val_mask]))/np.sum(prob_val[sub_θ_val_mask])
-            sup_θ_val_mean = np.sum(np.multiply(val[not sup_θ_val_mask],prob_val[not sup_θ_val_mask]))/np.sum(prob_val[sup_θ_val_mask])
+            sup_θ_val_mean = np.sum(np.multiply(val[np.logical_not(sup_θ_val_mask)],prob_val[np.logical_not(sup_θ_val_mask)]))/np.sum(prob_val[sup_θ_val_mask])
             θ1 = (sub_θ_val_mean + sup_θ_val_mean)/2
         
         # filter signal, boxcar window
