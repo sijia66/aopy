@@ -2,7 +2,6 @@
 
 # submodule containing data conditioning methods for ECoG
 
-
 import numpy as np
 import numpy.linalg as npla
 import scipy.signal as sps
@@ -32,52 +31,49 @@ def bad_channel_detection( data, srate, lf_c=100, sg_win_t=8, sg_over_t=4, sg_bw
 def high_freq_data_detection( data, srate, bad_channels=None, lf_c=100):
     print("Running high frequency noise detection: lfc @ {0}".format(lf_c))
     [num_ch,num_samp] = np.shape(data)
+    bad_data_mask_all_ch = np.zeros((num_ch,num_samp))
     data_t = np.arange(num_samp)/srate
     if not bad_channels:
         bad_channels = np.zeros(num_ch)
     
-    # calculate multitaper spectrogram for each channel
+    # mt sgram parameters
     sg_win_t = 8 # (s)
     sg_over_t = sg_win_t // 2 # (s)
     sg_bw = 0.5 # (Hz)
-    print("computing data spectrogram:");
-    fxx,txx,Sxx = mt_sgram(data,srate,sg_win_t,sg_over_t,sg_bw) # Sxx: [num_ch]x[num_freq]x[num_t]
-    num_freq, = np.shape(fxx)
-    num_t, = np.shape(txx)
-    Sxx_mean = np.mean(Sxx,axis=2) # average across all windows, i.e. numch x num_f periodogram
     
-    # get low-freq, high-freq data
-    low_f_mask = fxx < lf_c # Hz
-    high_f_mask = np.logical_not(low_f_mask)
-    low_f_mean = np.mean(Sxx_mean[:,low_f_mask],axis=1)
-    low_f_std = np.std(Sxx_mean[:,low_f_mask],axis=1)
-    high_f_mean = np.mean(Sxx_mean[:,high_f_mask],axis=1)
-    high_f_std = np.std(Sxx_mean[:,high_f_mask],axis=1)
-    
-    # set thresholds for high, low freq. data
-    low_θ = low_f_mean - 3*low_f_std
-    high_θ = high_f_mean + 3*high_f_std
-    bad_data_mask_all_ch = np.zeros((num_ch,num_samp))
+    # estimate hf influence, channel-wise
     for ch_i in pb.progressbar(np.arange(num_ch)[np.logical_not(bad_channels)]):
+        fxx,txx,Sxx = mt_sgram(data[ch_i,:],srate,sg_win_t,sg_over_t,sg_bw) # Sxx: [num_ch]x[num_freq]x[num_t]
+        num_freq, = np.shape(fxx)
+        num_t, = np.shape(txx)
+        Sxx_mean = np.mean(Sxx,axis=1) # average across all windows, i.e. numch x num_f periodogram
+
+        # get low-freq, high-freq data
+        low_f_mask = fxx < lf_c # Hz
+        high_f_mask = np.logical_not(low_f_mask)
+        low_f_mean = np.mean(Sxx_mean[low_f_mask],axis=0)
+        low_f_std = np.std(Sxx_mean[low_f_mask],axis=0)
+        high_f_mean = np.mean(Sxx_mean[high_f_mask],axis=0)
+        high_f_std = np.std(Sxx_mean[high_f_mask],axis=0)
+
+        # set thresholds for high, low freq. data
+        low_θ = low_f_mean - 3*low_f_std
+        high_θ = high_f_mean + 3*high_f_std
+        
         for t_i, t_center in enumerate(txx):
-            low_f_mean_ = np.mean(Sxx[ch_i,low_f_mask,t_i])
-            high_f_mean_ = np.mean(Sxx[ch_i,high_f_mask,t_i])
-            if low_f_mean_ < low_θ[ch_i] and high_f_mean_ > high_θ[ch_i]:
+            low_f_mean_ = np.mean(Sxx[low_f_mask,t_i])
+            high_f_mean_ = np.mean(Sxx[high_f_mask,t_i])
+            if low_f_mean_ < low_θ or high_f_mean_ > high_θ:
                 # get indeces for the given sgram window and set them to "bad:True"
                 t_bad_mask = np.logical_and(data_t > t_center - sg_win_t/2, data_t < t_center + sg_win_t/2)
                 bad_data_mask_all_ch[ch_i,t_bad_mask] = True
                 
-    bad_ch_θ = 0
-    bad_data_mask = sum(bad_data_mask_all_ch) > bad_ch_θ
+#     bad_ch_θ = 0
+#     bad_data_mask = np.sum(bad_data_mask_all_ch,axis=0) > bad_ch_θ
+    bad_data_mask = np.any(bad_data_mask_all_ch,axis=0)
     
-    return bad_data_mask
+    return bad_data_mask, bad_data_mask_all_ch
 
-
-# estimate regions of abnormally high power - treat power estimates as chi^2 distribution, estimate the mean, thresh at 4*m
-def chi2_power_thresh( data, srate, k=4, win_time=10 ):
-    
-    return Null
-    
 
 # py version of noiseByHistogram.m - get upper and lower signal value bounds from a histogram
 def histogram_defined_noise_levels( data, nbin=20 ):
@@ -175,5 +171,5 @@ def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e-8 ,
     num_bad = np.sum(bad_all_ch_mask,axis=0)
     sat_data_mask = num_bad > num_ch/2
     
-    return sat_data_mask
+    return sat_data_mask, bad_all_ch_mask
 
