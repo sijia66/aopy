@@ -101,7 +101,7 @@ def mt_sgram(x,srate,win_t,over_t,bw):
     # over_t - size of window overlap (s)
     # bw - frequency resolution, i.e. bandwidth
     
-    n_ch,n_t = np.shape(x)
+    n_t = np.shape(x)[-1]
     
     # find, interpolate nan-values (replace in the output with nan)
     nan_idx = np.any(np.isnan(x),axis=0)
@@ -130,6 +130,8 @@ def mt_sgram(x,srate,win_t,over_t,bw):
         t_in_bin = np.logical_and(t>txx_edge[k],t<txx_edge[k+1])
         bad_txx[k] = np.any(np.logical_and(t_in_bin,nan_idx))
         
+    bad_txx = bad_txx > 0
+    
     Sxx = np.mean(Sxx_m,axis=0)
     Sxx[...,bad_txx] = np.nan
     
@@ -200,5 +202,7 @@ def interp_multichannel(x):
     xp = ok_idx.ravel().nonzero()[0]
     fp = x[ok_idx]
     idx = nan_idx.ravel().nonzero()[0]
-    a[nan_idx] = np.interp(idx,xp,fp)
+    x[nan_idx] = np.interp(idx,xp,fp)
+    
+    return x
     
