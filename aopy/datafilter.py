@@ -93,25 +93,45 @@ def histogram_defined_noise_levels( data, nbin=20 ):
     return (noise_lower, noise_upper)
 
 
-# multitaper spectrogram estimator
+# multitaper spectrogram estimator (handles missing data, i.e. NaN values
 def mt_sgram(x,srate,win_t,over_t,bw):
     # x - input data
     # srate - sampling rate of x
     # win_t - length of window (s)
     # over_t - size of window overlap (s)
     # bw - frequency resolution, i.e. bandwidth
+    
+    n_ch,n_t = np.shape(x)
+    
+    # find, interpolate nan-values (replace in the output with nan)
+    nan_idx = np.any(np.isnan(x),axis=0)
+    t = srate*np.arange(n_t)
+    bad_t = t[nan_idx]
+    x = interp_multichannel(x)
+    
+    # compute parameters
     nw = bw*win_t/2 # time-half bandwidth product
     n_taper = round(nw*2-1)
     win_n = srate*win_t
     over_n = srate*over_t
     dpss_w = sps.windows.dpss(win_n,nw,Kmax=n_taper)
     
+    # estimate mt spectrogram
     Sxx_m = []
     for k in range(n_taper):
-        fxx,txx,Sxx_ = sps.spectrogram(x,srate,window=dpss_w[k,:],noverlap=over_n)
+        fxx,txx,Sxx_ = sps.spectrogram(x,srate,window=dpss_w[k,:],noverlap=over_n,detrend="linear")
         Sxx_m.append(Sxx_)
         
+    # align sgram time bins with interpolated times, overwrite values with NaN
+    n_bin = np.shape(txx)[0]
+    txx_edge = np.append(txx - win_t/2,txx[-1]+win_t/2)
+    bad_txx = np.zeros(n_bin)
+    for k in range(n_bin):
+        t_in_bin = np.logical_and(t>txx_edge[k],t<txx_edge[k+1])
+        bad_txx[k] = np.any(np.logical_and(t_in_bin,nan_idx))
+        
     Sxx = np.mean(Sxx_m,axis=0)
+    Sxx[...,bad_txx] = np.nan
     
     return fxx, txx, Sxx
 
@@ -173,3 +193,12 @@ def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e-8 ,
     
     return sat_data_mask, bad_all_ch_mask
 
+# 1-d interpolation of missing values (NaN) in multichannel data (unwraps, interpolates over NaN, fills in.)
+def interp_multichannel(x):
+    nan_idx = np.isnan(x)
+    ok_idx = ~nan_idx
+    xp = ok_idx.ravel().nonzero()[0]
+    fp = x[ok_idx]
+    idx = nan_idx.ravel().nonzero()[0]
+    a[nan_idx] = np.interp(idx,xp,fp)
+    
