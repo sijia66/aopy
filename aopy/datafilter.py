@@ -94,7 +94,7 @@ def histogram_defined_noise_levels( data, nbin=20 ):
 
 
 # multitaper spectrogram estimator (handles missing data, i.e. NaN values
-def mt_sgram(x,srate,win_t,over_t,bw):
+def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None):
     # x - input data
     # srate - sampling rate of x
     # win_t - length of window (s)
@@ -102,12 +102,12 @@ def mt_sgram(x,srate,win_t,over_t,bw):
     # bw - frequency resolution, i.e. bandwidth
     
     n_t = np.shape(x)[-1]
+    t = srate*np.arange(n_t)
     
     # find, interpolate nan-values (replace in the output with nan)
-    nan_idx = np.any(np.isnan(x),axis=0)
-    t = srate*np.arange(n_t)
-    bad_t = t[nan_idx]
-    x = interp_multichannel(x)
+#     nan_idx = np.any(np.isnan(x),axis=0)
+    if interp:
+        x = interp_multichannel(x)
     
     # compute parameters
     nw = bw*win_t/2 # time-half bandwidth product
@@ -119,21 +119,20 @@ def mt_sgram(x,srate,win_t,over_t,bw):
     # estimate mt spectrogram
     Sxx_m = []
     for k in range(n_taper):
-        fxx,txx,Sxx_ = sps.spectrogram(x,srate,window=dpss_w[k,:],noverlap=over_n,detrend="linear")
+        fxx,txx,Sxx_ = sps.spectrogram(x,srate,window=dpss_w[k,:],noverlap=over_n,detrend="constant")
         Sxx_m.append(Sxx_)
-        
-    # align sgram time bins with interpolated times, overwrite values with NaN
-    n_bin = np.shape(txx)[0]
-    txx_edge = np.append(txx - win_t/2,txx[-1]+win_t/2)
-    bad_txx = np.zeros(n_bin)
-    for k in range(n_bin):
-        t_in_bin = np.logical_and(t>txx_edge[k],t<txx_edge[k+1])
-        bad_txx[k] = np.any(np.logical_and(t_in_bin,nan_idx))
-        
-    bad_txx = bad_txx > 0
-    
     Sxx = np.mean(Sxx_m,axis=0)
-    Sxx[...,bad_txx] = np.nan
+    
+    # align sgram time bins with bad times, overwrite values with NaN
+    if np.any(mask):
+        n_bin = np.shape(txx)[0]
+        txx_edge = np.append(txx - win_t/2,txx[-1]+win_t/2)
+        bad_txx = np.zeros(n_bin)
+        for k in range(n_bin):
+            t_in_bin = np.logical_and(t>txx_edge[k],t<txx_edge[k+1])
+            bad_txx[k] = np.any(np.logical_and(t_in_bin,mask))
+        bad_txx = bad_txx > 0
+        Sxx[...,bad_txx] = np.nan
     
     return fxx, txx, Sxx
 
