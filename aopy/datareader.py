@@ -74,10 +74,10 @@ def read_from_start(data_file_path,data_type,n_ch,n_read):
 def read_from_file(data_file_path,data_type,n_ch,n_read,n_offset):
     data_file = open(data_file_path,"rb")
     if np.version.version > "1.13": # "offset" field not added until later installations
-        warnings.FutureWarning("'offset' feature not available in numpy <= 1.13 - reading from the top")
         data = np.fromfile(data_file,dtype=data_type,count=n_read*n_ch,
                            offset=n_offset*n_ch)
     else:
+        warnings.FutureWarning("'offset' feature not available in numpy <= 1.13 - reading from the top")
         data = np.fromfile(data_file,dtype=data_type,count=n_read*n_ch)
     data = np.reshape(data,(n_ch,n_read),order='F')
     data_file.close()
