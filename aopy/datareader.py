@@ -73,7 +73,7 @@ def read_from_start(data_file_path,data_type,n_ch,n_read):
 # read some time from a given offset
 def read_from_file(data_file_path,data_type,n_ch,n_read,n_offset):
     data_file = open(data_file_path,"rb")
-    if np.version.version > "1.13": # "offset" field not added until later installations
+    if np.version.version >= "1.17": # "offset" field not added until later installations
         data = np.fromfile(data_file,dtype=data_type,count=n_read*n_ch,
                            offset=n_offset*n_ch)
     else:
