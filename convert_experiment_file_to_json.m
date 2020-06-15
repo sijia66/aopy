@@ -10,7 +10,8 @@ function convert_experiment_file_to_json(experiment_file_path,varargin)
 
 %% parse inputs
 ip = inputParser;
-default_json_file_path = strcat(strtok(experiment_file_path,'.'),'.json');
+[experiment_file_dir,experiment_file_noext,experiment_file_ext] = fileparts(experiment_file_path)
+default_json_file_path = strcat(experiment_file_dir,filesep,experiment_file_noext,'.json');
 ip.addRequired('experiment_file_path',@(s)exist(s,'file'));
 ip.addOptional('json_file_path',default_json_file_path,@(s)exist(fileparts(s),'dir'));
 ip.parse(experiment_file_path,varargin{:});
