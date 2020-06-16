@@ -7,9 +7,13 @@ from aopy import datafilter
 import numpy as np
 import scipy.io as sio
 from pandas import read_csv
+import string
 import pickle as pkl
 import os
+import glob
 import warnings
+import json
+
 
 # wrapper to read and handle clfp ECOG data
 def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
@@ -17,23 +21,42 @@ def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
     # get file path, set ancillary data file names
     data_file = os.path.basename(data_file_name)
     data_file_kern = os.path.splitext(data_file)[0]
+    rec_id, microdrive_name, rec_type = data_file_kern.split('.')
     data_path = os.path.dirname(data_file_name)
     if exp_file_name is None:
-        exp_file_name = os.path.join(data_path,"experiment.csv")
+#         exp_file_name = os.path.join(data_path,"experiment.csv")
+        exp_file_name = glob.glob(data_path+"*.json")[0]
     if mask_file_name is None:
         mask_file_name = os.path.join(data_path,data_file_kern + ".mask.pkl")
         
     
     # check for experiment file, load if valid, exit if not.
     if os.path.exists(exp_file_name):
-        exp = read_csv(exp_file_name)
-        srate = int(exp.srate_ECoG[0])
-        num_ch = int(exp.nch_ECoG[0])
-        exp = {"srate":srate,"num_ch":num_ch}
+#         exp = read_csv(exp_file_name)
+#         srate = int(exp.srate_ECoG[0])
+#         num_ch = int(exp.nch_ECoG[0])
+#         exp = {"srate":srate,"num_ch":num_ch}
+        with open(exp_file_name,'r') as f:
+            experiment = json.load(f)
     else:
-        raise NameError ("Invalid Experiment File. Aborting Process.")
+        raise NameError("Experiment file {} either invalid or not found. Aborting Process.".format(exp_file_name))
         
-    # set parameters
+    # get srate
+    if rec_type == 'raw':
+        srate = experiment['hardware']['acquisition']['samplingrate']
+    elif rec_type == 'lfp':
+        srate = 1000
+    elif rec_type == 'clfp':
+        srate = 1000
+    
+    # get microdrive parameters
+    microdrive_name_list = [md['name'] for md in experiment['hardware']['microdrive']]
+    microdrive_idx = [md_idx for md_idx, md in enumerate(microdrive_name_list) if microdrive_name == md][0]
+    microdrive_dict = experiment['hardware']['microdrive'][microdrive_idx]
+    num_ch = len(microdrive_dict['electrodes'])
+    
+    exp = {"srate":srate,"num_ch":num_ch}
+    
     data_type = np.float32
     data_type_size = data_type().nbytes
     file_size = os.path.getsize(data_file_name)

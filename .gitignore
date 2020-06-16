@@ -3,9 +3,9 @@
 *.DS_store
 *.png
 *.jpg
-
 analyses/.ipynb_checkpoints/example_load_notebook-checkpoint.ipynb
 .vscode/settings.json
 aopy/.vscode/settings.json
 .ipynb_checkpoints/example_load_notebook-checkpoint.ipynb
 .ipynb_checkpoints/load_ECoG-checkpoint.ipynb
+*.m~
