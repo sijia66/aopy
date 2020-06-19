@@ -25,7 +25,7 @@ def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
     data_path = os.path.dirname(data_file_name)
     if exp_file_name is None:
 #         exp_file_name = os.path.join(data_path,"experiment.csv")
-        exp_file_name = glob.glob(data_path+"*.json")[0]
+        exp_file_name = glob.glob(os.path.join(data_path,"*.json"))[0]
     if mask_file_name is None:
         mask_file_name = os.path.join(data_path,data_file_kern + ".mask.pkl")
         

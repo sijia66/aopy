@@ -5,8 +5,6 @@
 import numpy as np
 import numpy.linalg as npla
 import scipy.signal as sps
-import progressbar as pb
-
 
 # python implementation of badChannelDetection.m - see which channels are too noisy
 def bad_channel_detection( data, srate, lf_c=100, sg_win_t=8, sg_over_t=4, sg_bw = 0.5 ):
@@ -42,7 +40,8 @@ def high_freq_data_detection( data, srate, bad_channels=None, lf_c=100):
     sg_bw = 0.5 # (Hz)
 
     # estimate hf influence, channel-wise
-    for ch_i in pb.progressbar(np.arange(num_ch)[np.logical_not(bad_channels)]):
+    for ch_i in np.arange(num_ch)[np.logical_not(bad_channels)]:
+        print_progress_bar(ch_i,num_ch)
         fxx,txx,Sxx = mt_sgram(data[ch_i,:],srate,sg_win_t,sg_over_t,sg_bw) # Sxx: [num_ch]x[num_freq]x[num_t]
         num_freq, = np.shape(fxx)
         num_t, = np.shape(txx)
@@ -111,7 +110,7 @@ def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None):
 
     # compute parameters
     nw = bw*win_t/2 # time-half bandwidth product
-    n_taper = int(round(nw*2-1))
+    n_taper = int(max((floor(nw*2-1),1)))
     win_n = int(srate*win_t)
     over_n = int(srate*over_t)
     dpss_w = sps.windows.dpss(win_n,nw,Kmax=n_taper)
@@ -147,7 +146,8 @@ def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e-8 ,
     bad_all_ch_mask = np.zeros((num_ch,num_samp))
     data_rect = np.abs(data)
     mask = [bool(not x) for x in bad_channels]
-    for ch_i in pb.progressbar(np.arange(num_ch)[mask]):
+    for ch_i in np.arange(num_ch)[mask]:
+        print_progress_bar(ch_i,num_ch)
         ch_data = data_rect[ch_i,:]
         θ1 = 50 # initialize threshold value
         θ0 = 0
@@ -204,3 +204,14 @@ def interp_multichannel(x):
     x[nan_idx] = np.interp(idx,xp,fp)
 
     return x
+
+# simple progressbar, not tied to the iterator
+def print_progress_bar(count, total, status=''):
+    bar_len = 60
+    filled_len = int(round(bar_len * count / float(total)))
+
+    percents = round(100.0 * count / float(total), 1)
+    bar = '=' * filled_len + '-' * (bar_len - filled_len)
+
+    sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', status))
+    sys.stdout.flush()

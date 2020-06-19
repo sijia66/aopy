@@ -34,7 +34,7 @@ from datetime    import datetime
 from math        import ceil
 from os          import path as ospath
 from struct      import calcsize, pack, unpack, unpack_from
-from brMiscFxns  import openfilecheck, brmiscfxns_ver
+from aopy.brMiscFxns  import openfilecheck, brmiscfxns_ver
 
 # Version control set/check
 brpylib_ver        = "1.3.2"
