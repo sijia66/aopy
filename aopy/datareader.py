@@ -12,24 +12,22 @@ import pickle as pkl
 import os
 import glob
 import warnings
-import json
 
 
 # wrapper to read and handle clfp ECOG data
 def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
-    
+
     # get file path, set ancillary data file names
     data_file = os.path.basename(data_file_name)
     data_file_kern = os.path.splitext(data_file)[0]
     rec_id, microdrive_name, rec_type = data_file_kern.split('.')
     data_path = os.path.dirname(data_file_name)
     if exp_file_name is None:
-#         exp_file_name = os.path.join(data_path,"experiment.csv")
-        exp_file_name = glob.glob(data_path+"*.json")[0]
+        exp_file_name = rec_id + '.experiment.json'
     if mask_file_name is None:
         mask_file_name = os.path.join(data_path,data_file_kern + ".mask.pkl")
-        
-    
+
+
     # check for experiment file, load if valid, exit if not.
     if os.path.exists(exp_file_name):
 #         exp = read_csv(exp_file_name)
@@ -40,7 +38,7 @@ def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
             experiment = json.load(f)
     else:
         raise NameError("Experiment file {} either invalid or not found. Aborting Process.".format(exp_file_name))
-        
+
     # get srate
     if rec_type == 'raw':
         srate = experiment['hardware']['acquisition']['samplingrate']
@@ -48,24 +46,24 @@ def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
         srate = 1000
     elif rec_type == 'clfp':
         srate = 1000
-    
+
     # get microdrive parameters
     microdrive_name_list = [md['name'] for md in experiment['hardware']['microdrive']]
     microdrive_idx = [md_idx for md_idx, md in enumerate(microdrive_name_list) if microdrive_name == md][0]
     microdrive_dict = experiment['hardware']['microdrive'][microdrive_idx]
     num_ch = len(microdrive_dict['electrodes'])
-    
+
     exp = {"srate":srate,"num_ch":num_ch}
-    
+
     data_type = np.float32
     data_type_size = data_type().nbytes
     file_size = os.path.getsize(data_file_name)
     n_all = int(np.floor(file_size/num_ch/data_type_size))
-    
+
     # load data
     print("Loading data file:")
     data = read_from_file(data_file_name,data_type,num_ch,n_all,0)
-    
+
     # check for mask file, load if valid, compute if not
     if os.path.exists(mask_file_name):
         with open(mask_file_name,"rb") as mask_f:
@@ -81,7 +79,7 @@ def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
         print("Saving mask data for {0} to {1}".format(data_file,mask_file_name))
         with open(mask_file_name,"wb") as mask_f:
             pkl.dump(mask,mask_f)
-        
+
     return data, exp, mask
 
 # read T seconds of data from the start of the recording:
@@ -113,10 +111,8 @@ def get_exp_var(exp_data,*args):
     for k, var_name in enumerate(args):
         if k > 1:
             out = out[None][0][None][0][var_name]
-        
+
         else:
             out = out[var_name]
-        
-    return out
 
-    
+    return out
