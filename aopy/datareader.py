@@ -10,12 +10,12 @@ from pandas import read_csv
 import string
 import pickle as pkl
 import os
-import glob
+import json
 import warnings
 
 
 # wrapper to read and handle clfp ECOG data
-def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
+def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_file_name=None):
 
     # get file path, set ancillary data file names
     data_file = os.path.basename(data_file_name)
@@ -23,7 +23,7 @@ def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
     rec_id, microdrive_name, rec_type = data_file_kern.split('.')
     data_path = os.path.dirname(data_file_name)
     if exp_file_name is None:
-        exp_file_name = rec_id + '.experiment.json'
+        exp_file_name = os.path.join(data_path,rec_id + ".experiment.json")
     if mask_file_name is None:
         mask_file_name = os.path.join(data_path,data_file_kern + ".mask.pkl")
 
@@ -58,11 +58,18 @@ def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
     data_type = np.float32
     data_type_size = data_type().nbytes
     file_size = os.path.getsize(data_file_name)
+    n_offset = np.round(t_range[0]*srate)*num_ch*data_type_size
     n_all = int(np.floor(file_size/num_ch/data_type_size))
+    if t_range[1] == -1:
+        n_stop = n_all
+    else:
+        n_stop = np.round(t_range[1]*srate)*num_ch*data_type_size
+    n_read = n_stop-n_offset
+
 
     # load data
     print("Loading data file:")
-    data = read_from_file(data_file_name,data_type,num_ch,n_all,0)
+    data = read_from_file(data_file_name,data_type,num_ch,n_offset,n_read)
 
     # check for mask file, load if valid, compute if not
     if os.path.exists(mask_file_name):

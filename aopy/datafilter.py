@@ -5,6 +5,7 @@
 import numpy as np
 import numpy.linalg as npla
 import scipy.signal as sps
+import sys
 
 # python implementation of badChannelDetection.m - see which channels are too noisy
 def bad_channel_detection( data, srate, lf_c=100, sg_win_t=8, sg_over_t=4, sg_bw = 0.5 ):
@@ -110,7 +111,7 @@ def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None):
 
     # compute parameters
     nw = bw*win_t/2 # time-half bandwidth product
-    n_taper = int(max((floor(nw*2-1),1)))
+    n_taper = int(max((np.floor(nw*2-1),1)))
     win_n = int(srate*win_t)
     over_n = int(srate*over_t)
     dpss_w = sps.windows.dpss(win_n,nw,Kmax=n_taper)
