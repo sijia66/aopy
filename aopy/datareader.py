@@ -15,7 +15,7 @@ import warnings
 
 
 # wrapper to read and handle clfp ECOG data
-def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_file_name=None):
+def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_file_name=None,compute_mask=True):
 
     # get file path, set ancillary data file names
     data_file = os.path.basename(data_file_name)
@@ -58,24 +58,26 @@ def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_fi
     data_type = np.float32
     data_type_size = data_type().nbytes
     file_size = os.path.getsize(data_file_name)
-    n_offset = np.round(t_range[0]*srate)*num_ch*data_type_size
+    n_offset_samples = np.round(t_range[0]*srate)
+    n_offset = n_offset_samples*data_type_size
     n_all = int(np.floor(file_size/num_ch/data_type_size))
     if t_range[1] == -1:
         n_stop = n_all
     else:
-        n_stop = np.round(t_range[1]*srate)*num_ch*data_type_size
-    n_read = n_stop-n_offset
-
+        n_stop = np.min((np.round(t_range[1]*srate),n_all))
+    n_read = n_stop-n_offset_samples
 
     # load data
     print("Loading data file:")
-    data = read_from_file(data_file_name,data_type,num_ch,n_offset,n_read)
+    # n_offset value is the number of bytes to skip
+    # n_read value is the number of items to read (by data type)
+    data = read_from_file(data_file_name,data_type,num_ch,n_read,n_offset)
 
     # check for mask file, load if valid, compute if not
     if os.path.exists(mask_file_name):
         with open(mask_file_name,"rb") as mask_f:
             mask = pkl.load(mask_f)
-    else:
+    elif compute_mask:
         print("No mask data file found for {0}".format(data_file))
         print("Computing data masks:")
         hf_mask,_ = datafilter.high_freq_data_detection(data,srate)
@@ -86,6 +88,8 @@ def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_fi
         print("Saving mask data for {0} to {1}".format(data_file,mask_file_name))
         with open(mask_file_name,"wb") as mask_f:
             pkl.dump(mask,mask_f)
+    else:
+        mask = []
 
     return data, exp, mask
 
