@@ -42,10 +42,13 @@ def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_fi
     # get srate
     if rec_type == 'raw':
         srate = experiment['hardware']['acquisition']['samplingrate']
+        data_type = np.ushort
     elif rec_type == 'lfp':
         srate = 1000
+        data_type = np.float32
     elif rec_type == 'clfp':
         srate = 1000
+        data_type = np.float32
 
     # get microdrive parameters
     microdrive_name_list = [md['name'] for md in experiment['hardware']['microdrive']]
@@ -55,7 +58,6 @@ def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_fi
 
     exp = {"srate":srate,"num_ch":num_ch}
 
-    data_type = np.float32
     data_type_size = data_type().nbytes
     file_size = os.path.getsize(data_file_name)
     n_offset_samples = np.round(t_range[0]*srate)
@@ -72,6 +74,11 @@ def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_fi
     # n_offset value is the number of bytes to skip
     # n_read value is the number of items to read (by data type)
     data = read_from_file(data_file_name,data_type,num_ch,n_read,n_offset)
+    if rec_type == 'raw': # correct uint16 encoding errors
+        data = np.array(data,dtype=np.float32)
+        for ch_idx in range(num_ch):
+            is_neg = data[ch_idx,:] > 2**15
+            data[ch_idx,is_neg] = data[ch_idx,is_neg] - (2**16 - 1)
 
     # check for mask file, load if valid, compute if not
     if os.path.exists(mask_file_name):

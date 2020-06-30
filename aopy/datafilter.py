@@ -94,7 +94,7 @@ def histogram_defined_noise_levels( data, nbin=20 ):
 
 
 # multitaper spectrogram estimator (handles missing data, i.e. NaN values
-def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None):
+def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None,detrend=False):
     # x - input data
     # srate - sampling rate of x
     # win_t - length of window (s)
@@ -119,7 +119,7 @@ def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None):
     # estimate mt spectrogram
     Sxx_m = []
     for k in range(n_taper):
-        fxx,txx,Sxx_ = sps.spectrogram(x,srate,window=dpss_w[k,:],noverlap=over_n,detrend="constant")
+        fxx,txx,Sxx_ = sps.spectrogram(x,srate,window=dpss_w[k,:],noverlap=over_n,detrend=detrend)
         Sxx_m.append(Sxx_)
     Sxx = np.mean(Sxx_m,axis=0)
 
