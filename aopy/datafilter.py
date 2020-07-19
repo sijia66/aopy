@@ -5,6 +5,7 @@
 import numpy as np
 import numpy.linalg as npla
 import scipy.signal as sps
+import sys
 
 # python implementation of badChannelDetection.m - see which channels are too noisy
 def bad_channel_detection( data, srate, lf_c=100, sg_win_t=8, sg_over_t=4, sg_bw = 0.5 ):
@@ -93,7 +94,7 @@ def histogram_defined_noise_levels( data, nbin=20 ):
 
 
 # multitaper spectrogram estimator (handles missing data, i.e. NaN values
-def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None):
+def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None,detrend=False):
     # x - input data
     # srate - sampling rate of x
     # win_t - length of window (s)
@@ -110,7 +111,7 @@ def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None):
 
     # compute parameters
     nw = bw*win_t/2 # time-half bandwidth product
-    n_taper = int(max((floor(nw*2-1),1)))
+    n_taper = int(max((np.floor(nw*2-1),1)))
     win_n = int(srate*win_t)
     over_n = int(srate*over_t)
     dpss_w = sps.windows.dpss(win_n,nw,Kmax=n_taper)
@@ -118,7 +119,7 @@ def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None):
     # estimate mt spectrogram
     Sxx_m = []
     for k in range(n_taper):
-        fxx,txx,Sxx_ = sps.spectrogram(x,srate,window=dpss_w[k,:],noverlap=over_n,detrend="constant")
+        fxx,txx,Sxx_ = sps.spectrogram(x,srate,window=dpss_w[k,:],noverlap=over_n,detrend=detrend)
         Sxx_m.append(Sxx_)
     Sxx = np.mean(Sxx_m,axis=0)
 

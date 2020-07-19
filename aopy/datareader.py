@@ -10,12 +10,12 @@ from pandas import read_csv
 import string
 import pickle as pkl
 import os
-import glob
+import json
 import warnings
 
 
 # wrapper to read and handle clfp ECOG data
-def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
+def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_file_name=None,compute_mask=True):
 
     # get file path, set ancillary data file names
     data_file = os.path.basename(data_file_name)
@@ -23,7 +23,7 @@ def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
     rec_id, microdrive_name, rec_type = data_file_kern.split('.')
     data_path = os.path.dirname(data_file_name)
     if exp_file_name is None:
-        exp_file_name = rec_id + '.experiment.json'
+        exp_file_name = os.path.join(data_path,rec_id + ".experiment.json")
     if mask_file_name is None:
         mask_file_name = os.path.join(data_path,data_file_kern + ".mask.pkl")
 
@@ -42,10 +42,13 @@ def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
     # get srate
     if rec_type == 'raw':
         srate = experiment['hardware']['acquisition']['samplingrate']
+        data_type = np.ushort
     elif rec_type == 'lfp':
         srate = 1000
+        data_type = np.float32
     elif rec_type == 'clfp':
         srate = 1000
+        data_type = np.float32
 
     # get microdrive parameters
     microdrive_name_list = [md['name'] for md in experiment['hardware']['microdrive']]
@@ -55,20 +58,33 @@ def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
 
     exp = {"srate":srate,"num_ch":num_ch}
 
-    data_type = np.float32
     data_type_size = data_type().nbytes
     file_size = os.path.getsize(data_file_name)
+    n_offset_samples = np.round(t_range[0]*srate)
+    n_offset = n_offset_samples*data_type_size
     n_all = int(np.floor(file_size/num_ch/data_type_size))
+    if t_range[1] == -1:
+        n_stop = n_all
+    else:
+        n_stop = np.min((np.round(t_range[1]*srate),n_all))
+    n_read = n_stop-n_offset_samples
 
     # load data
     print("Loading data file:")
-    data = read_from_file(data_file_name,data_type,num_ch,n_all,0)
+    # n_offset value is the number of bytes to skip
+    # n_read value is the number of items to read (by data type)
+    data = read_from_file(data_file_name,data_type,num_ch,n_read,n_offset)
+    if rec_type == 'raw': # correct uint16 encoding errors
+        data = np.array(data,dtype=np.float32)
+        for ch_idx in range(num_ch):
+            is_neg = data[ch_idx,:] > 2**15
+            data[ch_idx,is_neg] = data[ch_idx,is_neg] - (2**16 - 1)
 
     # check for mask file, load if valid, compute if not
     if os.path.exists(mask_file_name):
         with open(mask_file_name,"rb") as mask_f:
             mask = pkl.load(mask_f)
-    else:
+    elif compute_mask:
         print("No mask data file found for {0}".format(data_file))
         print("Computing data masks:")
         hf_mask,_ = datafilter.high_freq_data_detection(data,srate)
@@ -79,6 +95,8 @@ def load_ecog_clfp_data(data_file_name,exp_file_name=None,mask_file_name=None):
         print("Saving mask data for {0} to {1}".format(data_file,mask_file_name))
         with open(mask_file_name,"wb") as mask_f:
             pkl.dump(mask,mask_f)
+    else:
+        mask = []
 
     return data, exp, mask
 
