@@ -1,5 +1,5 @@
 % generate_json_wireless_data.m
-%
+% this matlab script all experiment files in th drive to json format
 % Use convert_experiment_file_to_json.m to save *experiment.mat files to
 % *experiment.json files. This will facilitate python data analysis.
 
@@ -7,7 +7,7 @@
 % 2020.06.14
 
 % data_dir_root = '/Volumes/G/Data/WirelessData/Goose_Multiscale_M1/';
-date_dir_root = '/Volumes/GoogleDrive/Shared\ drives/aoLab/Data/WirelessData/Goose_Multiscale_M1/';
+date_dir_root = 'C:\Users\Si Jia\OneDrive - UW\projects\Brain EEG\data\180328\007';
 rec_date_list = dir(fullfile(data_dir_root,'18*'));
 rec_date_list = {rec_date_list.name};
 for rec_date = rec_date_list
