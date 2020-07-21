@@ -109,6 +109,51 @@ def read_from_start(data_file_path,data_type,n_ch,n_read):
 
     return data
 
+def read_single_trial(data_file, events, trials, 
+                      ti = 0, #which trial to load 
+                      FS = 1000, task_field = None, bn = np.array([-300, 500]), #timing alignment parameters
+                      n_ch = 211, 
+                      data_type = np.float32):
+    """
+    inputs:
+    data_file: file object
+    ti: trial number to load, corresponding to sequence in the trials structure. 
+
+    outputs:
+    data: an n_ch by n_time_points np array
+    """
+    
+    #check if there is task field information
+    if task_field is None: 
+        print('task_field:str is not supplied!')
+        return None
+
+    subtrial_matlab = trials[ti]['Trial']
+    #convert to 0 based indexing in python
+    subtrial_py = subtrial_matlab - 1
+
+    #where to start in bytes?
+    align_at_time = events[task_field][subtrial_py]
+    start_at_time = align_at_time + bn[0] 
+    data_type_size = data_type().nbytes
+    start_at_byte = int(round(start_at_time*FS/1e3)) * data_type_size *n_ch
+
+    #how many samples to load?
+    N1 = int(round(bn[0]*FS/1000.0))
+    N2 = int(round(bn[1]*FS/1000.0))
+    dN=N2-N1  #number of time points
+
+    #retrieve the data 
+    data = np.fromfile(data_file,dtype=data_type,
+                        offset=start_at_byte,
+                        count=dN * n_ch)
+    
+    #reshape the data into n_ch by dN samples
+    data = np.reshape(data,(n_ch,dN),order='F')
+
+    return data
+
+
 # read some time from a given offset
 def read_from_file(data_file_path,data_type,n_ch,n_read,n_offset):
     data_file = open(data_file_path,"rb")
