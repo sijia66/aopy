@@ -9,9 +9,11 @@ import scipy.io as sio
 from pandas import read_csv
 import string
 import pickle as pkl
-import os
+import os, sys, io
 import json
 import warnings
+import time
+
 
 
 # wrapper to read and handle clfp ECOG data
@@ -109,18 +111,18 @@ def read_from_start(data_file_path,data_type,n_ch,n_read):
 
     return data
 
-def read_single_trial(data_file, events, trials, 
-                      ti = 0, #which trial to load 
+def read_single_trial(data_file, events, single_trial, 
                       FS = 1000, task_field = None, bn = np.array([-300, 500]), #timing alignment parameters
                       n_ch = 211, 
                       data_type = np.float32):
     """
     inputs:
     data_file: file object
-    ti: trial number to load, corresponding to sequence in the trials structure. 
+    single_trial: a dictionary of trial, sliced from trials(list of dictionaries)
 
     outputs:
     data: an n_ch by n_time_points np array
+    author: Si Jia Li @ July 2020
     """
     
     #check if there is task field information
@@ -128,7 +130,7 @@ def read_single_trial(data_file, events, trials,
         print('task_field:str is not supplied!')
         return None
 
-    subtrial_matlab = trials[ti]['Trial']
+    subtrial_matlab = single_trial['Trial']
     #convert to 0 based indexing in python
     subtrial_py = subtrial_matlab - 1
 
@@ -144,8 +146,8 @@ def read_single_trial(data_file, events, trials,
     dN=N2-N1  #number of time points
 
     #retrieve the data 
+    data_file.seek(start_at_byte) #default to relative to start of the file
     data = np.fromfile(data_file,dtype=data_type,
-                        offset=start_at_byte,
                         count=dN * n_ch)
     
     #reshape the data into n_ch by dN samples
@@ -179,3 +181,110 @@ def get_exp_var(exp_data,*args):
             out = out[var_name]
 
     return out
+
+def read_trials_lfp(monkeyDrive, trials,
+                    task_field = 'ReachStart', bn = np.array([-300, 800]),
+                    microdrive_name = 'LM1_ECOG_3', file_type = 'lfp',
+                    verbose = True, debug = False
+                    ):
+    '''
+    this function trial_aligned binary file, modelled after the matlab function loadlfp
+    inputs:
+    monkeyDrive(string): path to the \data folder
+    trials(list of dictionaries): loaded from json file converted from mat files
+    task_field(string): has to be one of the event codes 
+    bn(array_like, list, tuple): start and end time points in ms
+    verbose(Bool): display summary of execution of loading lfp. 
+
+    output:
+    data_array(np.array): of the size len(trials) by num_channels(microdrive)
+
+    author: Si Jia Li (July 2020)
+    '''
+
+    if (file_type == 'lfp') or (file_type == 'clfp'): FS = 1000 
+
+
+    rec_date_prev = None 
+    rec_num_str_prev = None 
+    data_file = None
+    JSON_EXT = '.json'
+    data_list = list() ##will convert to np array at the end
+
+    t1 = time.process_time()
+
+    if verbose:
+        print('Accepted loading parameters:')
+        print(f'trial aligned to {task_field}: {bn}')
+        print(f'loading drive {microdrive_name} with data type {file_type}')
+        print()
+
+    for ti in range(len(trials)):
+        single_trial = trials[ti] # a dictionary of metadata
+
+        #read the info
+        rec_date = single_trial['Day']
+        rec_num_str = single_trial['Rec']
+
+        #open a file if recording or day changes
+        if (rec_date_prev != rec_date ) or (rec_num_str_prev != rec_num_str):
+            #close previous rec if it is open
+            if isinstance(data_file, io.IOBase):
+                data_file.close()
+
+            #load new events file
+            events_file_loc = monkeyDrive + '\\'\
+                    + rec_date +'\\'\
+                    + rec_num_str+'\\'\
+                    + 'rec' + rec_num_str +'.Events' + JSON_EXT
+            with open(events_file_loc,'r') as f:
+                events = json.load(f)
+
+            #load the new experiments file
+            exp_file_loc  = monkeyDrive + '\\'\
+                    + rec_date +'\\'\
+                    + rec_num_str+'\\'\
+                    + 'rec' + rec_num_str +'.experiment' + JSON_EXT
+
+            with open(exp_file_loc,'r') as f:
+                experiment = json.load(f)
+            
+            microdrive_name_list = [md['name'] for md in experiment['hardware']['microdrive']]
+            microdrive_idx = [md_idx for md_idx, md in enumerate(microdrive_name_list) if microdrive_name == md][0]
+            microdrive_dict = experiment['hardware']['microdrive'][microdrive_idx]
+            n_ch = len(microdrive_dict['electrodes'])
+
+            #assemble the file path
+            rec_file_name = f'rec{rec_num_str}.{microdrive_name}.{file_type}.dat'
+            data_file_path = monkeyDrive +'\\'+rec_date + '\\'+ rec_num_str + '\\'+ rec_file_name
+            data_file = open(data_file_path,"rb")
+
+            if debug:
+                print(f'prev date {rec_date_prev} new date {rec_date}')
+                print(f'prev rec {rec_num_str_prev} new rec {rec_num_str}')
+                print(f'loaded event location:{events_file_loc}')
+                print(f'loaded {exp_file_loc}')
+                print("")
+
+        #otherwise, go ahead and load the data usign the single trial loader
+        data = read_single_trial(data_file, events, single_trial,
+                        FS = FS, task_field = task_field, bn = bn, #timing alignment parameters
+                        n_ch = n_ch)
+        
+        data_list.append(data.copy())
+
+        #record the day or rec_num to prepare any change
+        rec_date_prev = rec_date
+        rec_num_str_prev = rec_num_str
+
+    data_array = np.array(data_list)
+
+
+    t2 = time.process_time()
+    if verbose:
+        print(f'trial aligned to {task_field}: {bn}')
+        print(f'loading drive {microdrive_name} with data type {file_type}')
+        print(f'loaded array shape {data_array.shape}')
+        print(f'takes {t2 - t1} s to load {len(trials)} trials of data')
+    
+    return data_array
