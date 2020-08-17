@@ -219,7 +219,7 @@ def read_trials_lfp(monkeyDrive, trials,
         print(f'loading drive {microdrive_name} with data type {file_type}')
         print()
 
-    for ti in range(len(trials)):
+    for ti in range(len(trials)):   
         single_trial = trials[ti] # a dictionary of metadata
 
         #read the info
