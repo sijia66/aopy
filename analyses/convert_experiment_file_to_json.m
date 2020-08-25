@@ -19,7 +19,15 @@ experiment_file_path = ip.Results.experiment_file_path;
 json_file_path = ip.Results.json_file_path;
 
 %% write experiment data to output file
-load(experiment_file_path,'experiment');
 json_file_h = fopen(json_file_path,'w');
-fwrite(json_file_h,jsonencode(experiment));
+if contains(experiment_file_path, 'experiment')
+    load(experiment_file_path,'experiment');
+    fwrite(json_file_h,jsonencode(experiment));
+elseif contains(experiment_file_path, 'Events')
+    load(experiment_file_path,'Events');
+    fwrite(json_file_h,jsonencode(Events));
+else
+    disp('unrecognized file type')
+end
 fclose(json_file_h);
+
